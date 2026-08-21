@@ -53,6 +53,29 @@
     body { background: #fff; }
     .sm-page { width: auto !important; padding: 0 !important; }
   }
+  @media (max-width: 860px) {
+    .sm-page { padding: 20px 16px 48px !important; }
+    .sm-home { padding: 40px 16px !important; }
+    .sm-home-title { font-size: 30px !important; }
+    .sm-title { font-size: 30px !important; }
+    .sm-headerrow { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+    .sm-metagrid { grid-template-columns: auto 1fr !important; gap: 4px 16px !important; }
+    .sm-toolbar-outer { grid-template-columns: 1fr !important; }
+    .sm-toolbar-row { justify-content: flex-start !important; }
+    .sm-toolbtn { font-size: 10px !important; padding: 7px 10px !important; }
+    .sm-band-grid { grid-template-columns: 1fr !important; }
+    .sm-band-label {
+      writing-mode: horizontal-tb !important; transform: none !important; white-space: normal !important;
+      padding: 8px 12px !important; font-size: 13px !important; align-self: flex-start !important;
+    }
+    .sm-lanes { flex-direction: column !important; gap: 24px !important; }
+    .sm-lane-divider { display: none !important; }
+    .sm-cellgrid { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 480px) {
+    .sm-home-title, .sm-title { font-size: 24px !important; }
+    .sm-toolbar-row { gap: 8px !important; }
+  }
   ::selection { background: rgba(236,48,19,0.3); }
   a { color: var(--color-accent); }
   #__boot_error {
@@ -433,11 +456,35 @@ function setMapIdInUrl(id) {
   else url.searchParams.delete("map");
   window.history.pushState({}, "", url);
 }
+function AutoTextarea({ value, className, style, placeholder, readOnly, rows, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+  return /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      ref,
+      className,
+      style: { ...style, overflow: "hidden" },
+      placeholder,
+      readOnly,
+      rows,
+      value,
+      onChange
+    }
+  );
+}
 function HomeScreen({ onOpen }) {
   const [maps, setMaps] = useState(null);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
   const load = useCallback(async () => {
     const { data, error: error2 } = await supabase.from("strategy_maps").select("id, name, prev_year, curr_year, updated_at").order("updated_at", { ascending: false });
     if (error2) setError(error2.message);
@@ -448,16 +495,36 @@ function HomeScreen({ onOpen }) {
   }, [load]);
   const createMap = async () => {
     const name = newName.trim() || "Untitled Strategy Map";
+    if (!newPassword || newPassword.length < 4) {
+      setError("Set a password (at least 4 characters) for the new map before creating it.");
+      return;
+    }
     setCreating(true);
-    const { data, error: error2 } = await supabase.from("strategy_maps").insert({ name, years: defaultYears() }).select().single();
+    const { data, error: error2 } = await supabase.rpc("create_map_with_password", {
+      p_name: name,
+      p_password: newPassword
+    });
     setCreating(false);
     if (error2) {
       setError(error2.message);
       return;
     }
-    onOpen(data.id);
+    const newRow = Array.isArray(data) ? data[0] : data;
+    onOpen(newRow.id);
   };
-  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 760, margin: "0 auto", padding: "72px 24px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-accent-700)" } }, "CORPORATE \u2014 OFFICE OF THE CEO"), /* @__PURE__ */ React.createElement("h1", { style: { fontSize: 40, lineHeight: 1.05, letterSpacing: "-0.02em", margin: "12px 0 8px" } }, "Strategy Maps"), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--color-neutral-700)", margin: "0 0 32px" } }, "Open an existing map, or start a new one for a different project or business unit."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 40 } }, /* @__PURE__ */ React.createElement(
+  const deleteMap = async (id, name) => {
+    const pwd = window.prompt(`Enter the password for "${name}" to delete it. This can't be undone.`);
+    if (pwd == null) return;
+    setDeletingId(id);
+    const { error: error2 } = await supabase.rpc("delete_map_with_password", { p_id: id, p_password: pwd });
+    setDeletingId(null);
+    if (error2) {
+      window.alert("Couldn't delete this map: " + error2.message);
+      return;
+    }
+    load();
+  };
+  return /* @__PURE__ */ React.createElement("div", { className: "sm-home", style: { maxWidth: 760, margin: "0 auto", padding: "72px 24px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-accent-700)" } }, "CORPORATE \u2014 OFFICE OF THE CEO"), /* @__PURE__ */ React.createElement("h1", { className: "sm-home-title", style: { fontSize: 40, lineHeight: 1.05, letterSpacing: "-0.02em", margin: "12px 0 8px" } }, "Strategy Maps"), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--color-neutral-700)", margin: "0 0 32px" } }, "Open an existing map, or start a new one for a different project or business unit."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 40, maxWidth: 480 } }, /* @__PURE__ */ React.createElement(
     "input",
     {
       value: newName,
@@ -476,45 +543,99 @@ function HomeScreen({ onOpen }) {
         if (e.key === "Enter") createMap();
       }
     }
-  ), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", disabled: creating, onClick: createMap }, creating ? "Creating\u2026" : "+ New Map")), error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-accent-700)", marginBottom: 20, fontSize: 13 } }, "Couldn't load maps: ", error, ". Check that SUPABASE_URL / SUPABASE_ANON_KEY are set correctly at the top of this file, and that the schema has been run."), maps === null && !error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-neutral-600)" } }, "Loading\u2026"), maps && maps.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-neutral-600)" } }, "No maps yet \u2014 create your first one above."), maps && maps.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column" } }, maps.map((m) => /* @__PURE__ */ React.createElement(
-    "button",
+  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: newPassword,
+      onChange: (e) => setNewPassword(e.target.value),
+      placeholder: "Set a password for this map",
+      type: "password",
+      style: {
+        flex: 1,
+        font: "inherit",
+        fontSize: 14,
+        padding: "10px 12px",
+        border: "2px solid var(--color-text)",
+        background: "#fff",
+        color: "var(--color-text)"
+      },
+      onKeyDown: (e) => {
+        if (e.key === "Enter") createMap();
+      }
+    }
+  ), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", disabled: creating, onClick: createMap }, creating ? "Creating\u2026" : "+ New Map")), /* @__PURE__ */ React.createElement("p", { style: { fontSize: 12, color: "var(--color-neutral-600)", margin: 0 } }, "You'll need this password to edit or delete this map later \u2014 there's no way to reset it, so keep it somewhere safe.")), error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-accent-700)", marginBottom: 20, fontSize: 13 } }, "Couldn't load maps: ", error, ". Check that SUPABASE_URL / SUPABASE_ANON_KEY are set correctly at the top of this file, and that the schema has been run."), maps === null && !error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-neutral-600)" } }, "Loading\u2026"), maps && maps.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--color-neutral-600)" } }, "No maps yet \u2014 create your first one above."), maps && maps.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column" } }, maps.map((m) => /* @__PURE__ */ React.createElement(
+    "div",
     {
       key: m.id,
-      onClick: () => onOpen(m.id),
       style: {
         display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+        alignItems: "stretch",
         width: "100%",
-        textAlign: "left",
         background: "#fff",
         border: "2px solid var(--color-text)",
         borderTop: "2px solid var(--color-text)",
-        marginTop: -2,
-        padding: "16px 18px",
-        cursor: "pointer",
-        font: "inherit"
+        marginTop: -2
       }
     },
-    /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16 } }, m.name),
-    /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "var(--color-neutral-600)" } }, m.prev_year, "\u2013", m.curr_year, " \xB7 updated ", new Date(m.updated_at).toLocaleDateString())
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => onOpen(m.id),
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flex: 1,
+          minWidth: 0,
+          textAlign: "left",
+          background: "transparent",
+          border: 0,
+          padding: "16px 18px",
+          cursor: "pointer",
+          font: "inherit"
+        }
+      },
+      /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16 } }, m.name),
+      /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "var(--color-neutral-600)", whiteSpace: "nowrap", marginLeft: 12 } }, m.prev_year, "\u2013", m.curr_year, " \xB7 updated ", new Date(m.updated_at).toLocaleDateString())
+    ),
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => deleteMap(m.id, m.name),
+        disabled: deletingId === m.id,
+        title: "Delete map",
+        style: {
+          border: 0,
+          borderLeft: "2px solid var(--color-text)",
+          background: "transparent",
+          cursor: "pointer",
+          padding: "0 18px",
+          color: "var(--color-neutral-600)",
+          fontSize: 18,
+          font: "inherit"
+        }
+      },
+      deletingId === m.id ? "\u2026" : "\xD7"
+    )
   ))));
 }
 function EditorScreen({ mapId, onHome }) {
   const [row, setRow] = useState(null);
   const [years, setYears] = useState(null);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [mapPassword, setMapPassword] = useState(null);
   const [showPrev, setShowPrev] = useState(true);
   const [saveState, setSaveState] = useState("idle");
   const [exportingImage, setExportingImage] = useState(false);
   const [copyLabel, setCopyLabel] = useState("Copy Link");
   const [nameDraft, setNameDraft] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error: error2 } = await supabase.from("strategy_maps").select("*").eq("id", mapId).single();
+      const { data, error: error2 } = await supabase.from("strategy_maps").select("id, name, prev_year, curr_year, years, created_at, updated_at").eq("id", mapId).single();
       if (cancelled) return;
       if (error2) {
         setError(error2.message);
@@ -528,9 +649,40 @@ function EditorScreen({ mapId, onHome }) {
       cancelled = true;
     };
   }, [mapId]);
-  const persist = useCallback(async (patch) => {
+  const verifyPassword = async (pwd) => {
+    const { error: error2 } = await supabase.rpc("update_map_data", {
+      p_id: mapId,
+      p_password: pwd,
+      p_years: null,
+      p_name: null
+    });
+    return !error2;
+  };
+  const ensurePassword = async () => {
+    if (mapPassword) return mapPassword;
+    const pwd = window.prompt("Enter this map's password:");
+    if (pwd == null) return null;
+    const ok = await verifyPassword(pwd);
+    if (!ok) {
+      window.alert("Incorrect password.");
+      return null;
+    }
+    setMapPassword(pwd);
+    return pwd;
+  };
+  const persist = useCallback(async (patch, pwdOverride) => {
+    const pwd = pwdOverride || mapPassword;
+    if (!pwd) {
+      setSaveState("dirty");
+      return;
+    }
     setSaveState("saving");
-    const { error: error2 } = await supabase.from("strategy_maps").update(patch).eq("id", mapId);
+    const { error: error2 } = await supabase.rpc("update_map_data", {
+      p_id: mapId,
+      p_password: pwd,
+      p_years: patch.years ?? null,
+      p_name: patch.name ?? null
+    });
     if (error2) {
       setError(error2.message);
       setSaveState("dirty");
@@ -539,7 +691,7 @@ function EditorScreen({ mapId, onHome }) {
     setSaveState("saved");
     clearTimeout(persist._t);
     persist._t = setTimeout(() => setSaveState((s) => s === "saved" ? "idle" : s), 1800);
-  }, [mapId]);
+  }, [mapId, mapPassword]);
   const scheduleSave = useCallback((nextYears) => {
     setSaveState("dirty");
     clearTimeout(saveTimer.current);
@@ -553,20 +705,47 @@ function EditorScreen({ mapId, onHome }) {
       return next;
     });
   }, [scheduleSave]);
-  const saveNow = () => {
-    clearTimeout(saveTimer.current);
-    persist({ years });
+  const toggleEditing = async () => {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    const pwd = await ensurePassword();
+    if (pwd) setEditing(true);
   };
-  const renameNow = () => {
+  const saveNow = async () => {
+    const pwd = await ensurePassword();
+    if (!pwd) return;
+    clearTimeout(saveTimer.current);
+    persist({ years }, pwd);
+  };
+  const renameNow = async () => {
     const name = nameDraft.trim() || "Untitled Strategy Map";
     setNameDraft(name);
-    persist({ name });
+    const pwd = await ensurePassword();
+    if (!pwd) return;
+    persist({ name }, pwd);
   };
-  const resetMap = () => {
+  const resetMap = async () => {
+    const pwd = await ensurePassword();
+    if (!pwd) return;
     if (!window.confirm("Reset this map to the starting template? Current entries will be lost.")) return;
     const next = defaultYears();
     setYears(next);
-    persist({ years: next });
+    persist({ years: next }, pwd);
+  };
+  const deleteThisMap = async () => {
+    const pwd = await ensurePassword();
+    if (!pwd) return;
+    if (!window.confirm(`Delete "${row.name}"? This can't be undone.`)) return;
+    setDeleting(true);
+    const { error: error2 } = await supabase.rpc("delete_map_with_password", { p_id: mapId, p_password: pwd });
+    setDeleting(false);
+    if (error2) {
+      window.alert("Couldn't delete this map: " + error2.message);
+      return;
+    }
+    onHome();
   };
   const copyLink = async () => {
     const url = new URL(window.location.href);
@@ -628,9 +807,10 @@ function EditorScreen({ mapId, onHome }) {
   const laneKeys = showPrev ? ["prev", "curr"] : ["curr"];
   const locked = !editing;
   const saveLabel = { idle: "Save", saving: "Saving\u2026", saved: "Saved \u2713", dirty: "Save" }[saveState];
-  return /* @__PURE__ */ React.createElement("div", { className: "sm-page", style: { width: 1440, maxWidth: "100%", margin: "0 auto", padding: "40px 64px 72px", background: "var(--color-bg)" } }, /* @__PURE__ */ React.createElement("div", { className: "sm-noprint", style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 16 } }, /* @__PURE__ */ React.createElement("button", { className: "sm-linkbtn", onClick: onHome }, "\u2190 All Maps"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "var(--color-neutral-600)", letterSpacing: "0.08em", textTransform: "uppercase" } }, saveState === "dirty" ? "Unsaved changes" : saveState === "saving" ? "Saving\u2026" : "All changes saved")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 48, paddingBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 760, flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-accent-700)" } }, "CORPORATE \u2014 OFFICE OF THE CEO"), editing ? /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "sm-page", style: { width: 1440, maxWidth: "100%", margin: "0 auto", padding: "40px 64px 72px", background: "var(--color-bg)" } }, /* @__PURE__ */ React.createElement("div", { className: "sm-noprint sm-toprow", style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 16, flexWrap: "wrap", gap: 8 } }, /* @__PURE__ */ React.createElement("button", { className: "sm-linkbtn", onClick: onHome }, "\u2190 All Maps"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "var(--color-neutral-600)", letterSpacing: "0.08em", textTransform: "uppercase" } }, saveState === "dirty" ? "Unsaved changes" : saveState === "saving" ? "Saving\u2026" : "All changes saved")), /* @__PURE__ */ React.createElement("div", { className: "sm-headerrow", style: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 48, paddingBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { className: "sm-titlewrap", style: { maxWidth: 760, flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-accent-700)" } }, "CORPORATE \u2014 OFFICE OF THE CEO"), editing ? /* @__PURE__ */ React.createElement(
     "input",
     {
+      className: "sm-title",
       value: nameDraft,
       onChange: (e) => setNameDraft(e.target.value),
       onBlur: renameNow,
@@ -653,7 +833,7 @@ function EditorScreen({ mapId, onHome }) {
         color: "var(--color-text)"
       }
     }
-  ) : /* @__PURE__ */ React.createElement("h1", { style: { fontSize: 52, lineHeight: 1.02, margin: "12px 0 0", letterSpacing: "-0.02em" } }, row.name)), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "auto auto", gap: "6px 28px", fontSize: 13, paddingBottom: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { color: "var(--color-neutral-600)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 11, fontWeight: 700 } }, "Horizon"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 600 } }, "FY", currYear), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--color-neutral-600)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 11, fontWeight: 700 } }, "Owner"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 600 } }, "Office of the CEO"))), /* @__PURE__ */ React.createElement("div", { style: { height: 2, background: "var(--color-divider)" } }), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "46px 1fr", gap: 20, padding: "14px 0 10px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-neutral-600)" } }, "Objectives"), /* @__PURE__ */ React.createElement("div", { className: "sm-noprint", style: { display: "flex", gap: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: () => setShowPrev((s) => !s) }, showPrev ? "Hide " + prevYear : "Show " + prevYear), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn", onClick: () => setEditing((e) => !e) }, editing ? "Editing \u2014 click to lock" : "Locked \u2014 click to edit"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn", onClick: saveNow }, saveLabel), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: resetMap }, "Reset"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: copyLink }, copyLabel), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", onClick: exportPdf }, "Export PDF"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", onClick: exportImage }, exportingImage ? "Rendering\u2026" : "Save Image")))), BAND_DEFS.map((band, bi) => /* @__PURE__ */ React.createElement("div", { key: band.abbr, style: { borderTop: "2px solid var(--color-divider)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "auto 1fr", gap: 20, padding: "26px 0 30px", alignItems: "stretch" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement("h2", { style: {
+  ) : /* @__PURE__ */ React.createElement("h1", { className: "sm-title", style: { fontSize: 52, lineHeight: 1.02, margin: "12px 0 0", letterSpacing: "-0.02em" } }, row.name)), /* @__PURE__ */ React.createElement("div", { className: "sm-metagrid", style: { display: "grid", gridTemplateColumns: "auto auto", gap: "6px 28px", fontSize: 13, paddingBottom: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { color: "var(--color-neutral-600)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 11, fontWeight: 700 } }, "Horizon"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 600 } }, "FY", currYear), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--color-neutral-600)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 11, fontWeight: 700 } }, "Owner"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 600 } }, "Office of the CEO"))), /* @__PURE__ */ React.createElement("div", { style: { height: 2, background: "var(--color-divider)" } }), /* @__PURE__ */ React.createElement("div", { className: "sm-toolbar-outer", style: { display: "grid", gridTemplateColumns: "46px 1fr", gap: 20, padding: "14px 0 10px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", { className: "sm-toolbar-row", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-neutral-600)" } }, "Objectives"), /* @__PURE__ */ React.createElement("div", { className: "sm-noprint", style: { display: "flex", gap: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: () => setShowPrev((s) => !s) }, showPrev ? "Hide " + prevYear : "Show " + prevYear), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn", onClick: toggleEditing }, editing ? "Editing \u2014 click to lock" : "Locked \u2014 click to edit"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn", onClick: saveNow }, saveLabel), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: resetMap }, "Reset"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: copyLink }, copyLabel), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-muted", onClick: deleteThisMap, disabled: deleting }, deleting ? "Deleting\u2026" : "Delete Map"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", onClick: exportPdf }, "Export PDF"), /* @__PURE__ */ React.createElement("button", { className: "sm-toolbtn sm-primary", onClick: exportImage }, exportingImage ? "Rendering\u2026" : "Save Image")))), BAND_DEFS.map((band, bi) => /* @__PURE__ */ React.createElement("div", { key: band.abbr, className: "sm-band", style: { borderTop: "2px solid var(--color-divider)" } }, /* @__PURE__ */ React.createElement("div", { className: "sm-band-grid", style: { display: "grid", gridTemplateColumns: "auto 1fr", gap: 20, padding: "26px 0 30px", alignItems: "stretch" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement("h2", { className: "sm-band-label", style: {
     alignSelf: "stretch",
     background: "var(--color-accent)",
     color: "#fff",
@@ -666,15 +846,15 @@ function EditorScreen({ mapId, onHome }) {
     writingMode: "vertical-rl",
     transform: "rotate(180deg)",
     whiteSpace: "nowrap"
-  } }, band.name)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 28, alignItems: "stretch" } }, laneKeys.map((key) => {
+  } }, band.name)), /* @__PURE__ */ React.createElement("div", { className: "sm-lanes", style: { display: "flex", gap: 28, alignItems: "stretch" } }, laneKeys.map((key) => {
     const isPrev = key === "prev" && showPrev;
     const label = key === "prev" ? prevYear + " \u2014 previous" : currYear + " \u2014 current";
     const cells = years[key][bi] || [];
     const canCopyAll = key === "prev" && editing && (years.prev[bi] || []).length > 0;
-    return /* @__PURE__ */ React.createElement("div", { key, style: { flex: "1 1 0", minWidth: 0, display: "flex", gap: 28 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: "1 1 0", minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, paddingBottom: 12 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-neutral-600)" } }, label), canCopyAll && /* @__PURE__ */ React.createElement("button", { className: "sm-linkbtn sm-accentlink sm-noprint", onClick: () => mutate((y) => {
+    return /* @__PURE__ */ React.createElement("div", { key, className: "sm-lane", style: { flex: "1 1 0", minWidth: 0, display: "flex", gap: 28 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: "1 1 0", minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, paddingBottom: 12 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-neutral-600)" } }, label), canCopyAll && /* @__PURE__ */ React.createElement("button", { className: "sm-linkbtn sm-accentlink sm-noprint", onClick: () => mutate((y) => {
       (y.prev[bi] || []).forEach((c) => y.curr[bi].push(clone(c)));
-    }) }, "Copy all to ", currYear, " \u2192")), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 20, alignItems: "stretch" } }, cells.map((cell, ci) => /* @__PURE__ */ React.createElement("div", { key: ci, className: "sm-card", style: { border: "2px solid var(--color-text)", background: "#fff", padding: 16, minHeight: 104, display: "flex", flexDirection: "column", gap: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
-      "textarea",
+    }) }, "Copy all to ", currYear, " \u2192")), /* @__PURE__ */ React.createElement("div", { className: "sm-cellgrid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 20, alignItems: "stretch" } }, cells.map((cell, ci) => /* @__PURE__ */ React.createElement("div", { key: ci, className: "sm-card", style: { border: "2px solid var(--color-text)", background: "#fff", padding: 16, minHeight: 104, display: "flex", flexDirection: "column", gap: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
+      AutoTextarea,
       {
         className: "sm-in",
         rows: 2,
@@ -692,7 +872,7 @@ function EditorScreen({ mapId, onHome }) {
     ), editing && /* @__PURE__ */ React.createElement("button", { className: "sm-linkbtn", title: "Delete objective", style: { fontSize: 15 }, onClick: () => mutate((y) => {
       y[key][bi].splice(ci, 1);
     }) }, "\xD7")), cell.items.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { paddingTop: 10, borderTop: "2px solid var(--color-divider)", display: "flex", flexDirection: "column", gap: 5, fontSize: 13, lineHeight: 1.35, color: "var(--color-neutral-700)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "var(--color-neutral-500)" } }, "Initiatives"), cell.items.map((item, ii) => /* @__PURE__ */ React.createElement("div", { key: ii, style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
-      "textarea",
+      AutoTextarea,
       {
         className: "sm-in",
         rows: 1,
@@ -738,7 +918,7 @@ function EditorScreen({ mapId, onHome }) {
         }
       },
       "+ Add objective"
-    ))), isPrev && /* @__PURE__ */ React.createElement("div", { style: { width: 2, background: "var(--color-divider)", alignSelf: "stretch" } }));
+    ))), isPrev && /* @__PURE__ */ React.createElement("div", { className: "sm-lane-divider", style: { width: 2, background: "var(--color-divider)", alignSelf: "stretch" } }));
   }))))), /* @__PURE__ */ React.createElement("div", { style: { height: 2, background: "var(--color-divider)" } }), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 24, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32, background: "#fff" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#fff", padding: "8px 14px", display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("img", { src: LOGO_SRC, alt: "Megawide", style: { display: "block", height: 30, width: "auto" } })))));
 }
 function App() {
@@ -765,7 +945,6 @@ function App() {
   return mapId ? /* @__PURE__ */ React.createElement(EditorScreen, { mapId, onHome: goHome }) : /* @__PURE__ */ React.createElement(HomeScreen, { onOpen: openMap });
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
-
 } catch (err) {
   console.error('App failed to start:', err);
   var rootEl = document.getElementById('root');
